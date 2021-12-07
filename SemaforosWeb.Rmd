@@ -1,0 +1,299 @@
+---
+title: "Ensayo"
+author: "Ingeniería Geográfica"
+date: "07/12/2021"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    social: ["facebook", "linkedin"]
+    source_code: "https://github.com/ContrerasNk"
+    theme: journal
+---
+
+<style>
+body {
+text-align: justify;
+font-size: 18px;
+color:black}
+.navbar-inverse .navbar-nav > li > a, .navbar .navbar-brand {
+    text-decoration: none;
+    font-size: 18px;
+}
+p.comentarios{
+font-size: 18px;
+font-style: italic
+}
+img {
+vertical-align: middle;
+height: 20%;
+position: relative;
+left: 40%;
+}
+.image-container {
+margin: auto;
+width: 50%;
+height: 30%;
+position: relative;
+}
+</style>
+
+      
+```{r setup, include=FALSE}
+# require(pacman)
+# pacman::p_load(raster, sf, MASS, leaflet)
+library(raster)
+library(sf)
+library(MASS)
+library(leaflet)
+library(leafpop)
+library(dplyr)
+library(leafem)
+library(readxl)
+
+semaforos  <- st_read('recursos/semaforitos de la web.shp', quiet = TRUE)
+
+semaforos$longitud = st_coordinates(semaforos)[,"X"]
+semaforos$latitud = st_coordinates(semaforos)[,"Y"]
+
+semaforos <- semaforos %>% mutate( popupInfo1 = paste(
+                                            "lat",   round(latitud,3), ",",
+                                            "long",  round(longitud,3)))
+# semaforos_abel <- st_read('recursos/abel semaforitos.shp', quiet = TRUE)
+# lima <- st_read("recursos/lima_limite.shp")
+dist_lima <- st_read('recursos/distritos_lima.shp', quiet = TRUE)
+
+# # Extracción de coordenadas de los puntos
+# semaforos_df <- st_coordinates(semaforos) %>% as.data.frame()
+# names(semaforos_df) <- c('lon','lat')
+# 
+# 
+# 
+# # Aplicación de la estimación
+# kde <- kde2d(semaforos_df$lon, semaforos_df$lat, n = 8000, h = 0.008983, lims = c(-77.2315307318883271, -76.5749800940608907, -12.5468687690313008, -11.5547881091097207))
+# kde_raster <- kde %>% raster() %>% crop(lima) %>% mask(lima)# %>% disaggregate(fact = 5, method = "bilinear")
+# kde_raster <- kde_raster * 0.09004180434
+# m = c(0, 5, 1, 5, 10, 2, 10, 15, 3, 15, 20, 4, 20, 25, 5, 25, 30, 6, 30, 35, 7, 35, 40, 8, 40, 45, 9, 45, 50, 10, 50, 55, 11, 55, 60, 12)
+# rclmat = matrix(m, ncol=3, byrow=TRUE)
+# 
+# # Reclassify the raster layer
+# kde_raster = reclassify(kde_raster, rclmat)
+
+# writeRaster(kde_raster, "recursos/densidad_clasificada.tif")
+kde_raster <- raster("recursos/densidad_clasificada.tif")
+# plot(kde_raster)
+# densidad = raster("C:/Users/Contreras/Desktop/GEODATA/densidad1.tif")
+# plot(densidad)
+
+# pal <- colorNumeric(c("#ffffcc", "#fed976", "#fd8d3c", "#e31a1c", "#800026", "#980043", "#67001f", "#7a0177", "#49006a", "#081d58", " #000000"), values(kde_raster), na.color ="transparent") # 
+densidad <- leaflet() %>% 
+  addProviderTiles(providers$OpenStreetMap, group = "OSM") %>%
+  addProviderTiles(providers$Esri.WorldImagery, group = "Satellite") %>%
+  addControl(html = "<p><strong><em>MAPA DE DENSIDAD DE SEMÁFOROS</em></strong></p>",
+             position = "topright") %>%
+  addRasterImage(kde_raster, group = "prop", colors = c("#2b83ba", "#66acb0", "#abdda4", "#d0ecb0", "#ffffbf", "#fed892", "#fdae61", "#eb6941", "#e55136", "#e03d2c", "#dc2d25", "#d7191c")) %>% #, colors = pal
+  addLegend(colors =  c("#2b83ba", "#66acb0", "#abdda4", "#d0ecb0", "#ffffbf", "#fed892", "#fdae61", "#eb6941", "#e55136", "#e03d2c", "#dc2d25", "#d7191c"), values = values(kde_raster),title = "%", labels = c("0 - 1", "1 - 3", "3 - 5", "5 - 7", "7 - 11", "11 - 15", "15 - 20","20 - 25", "25 - 30", "30 - 40", "40 - 50", "50 - 60")) %>% 
+  addPolygons(data = dist_lima, fillOpacity = 0, weight = 2,
+              opacity = 1, label = ~DEPARTAMEN, color = "#000000", group = "Departamentos") %>%
+  addScaleBar(position = "bottomleft",
+              options = scaleBarOptions(maxWidth = 100, metric = TRUE,
+                                        imperial = TRUE, updateWhenIdle = TRUE))%>%
+  addLayersControl(baseGroups = c("OSM","Satellite"),
+                   overlayGroups = c("prop"),
+                   position = "bottomleft",
+                   options = layersControlOptions(collapsed = T)) %>%
+  setView(lng = -77.032569, lat = -12.048966, zoom = 12)
+
+
+# Keep only the taxi zone for the popup 
+pp_leaflet_spatial_1 <- leaflet() %>% 
+                        addTiles(group = "OpenStreetMap.BlackAndWhite (default)") %>%
+                        addProviderTiles("Stamen.Toner", group = "Toner")  %>%
+                        addProviderTiles("Esri.WorldStreetMap", group = "WorldStreetMap")   %>%
+  addControl(html = "<p><strong><em>MAPA DE PUNTOS DE SEMÁFOROS</em></strong></p>",
+             position = "topright") %>%
+                        setView(lng = -77.032569, lat = -12.048966, zoom = 9) %>%         # geocode("manhattan, NY")
+                        addPolygons(data = dist_lima, popup = popupTable(dist_lima), color = "green", group = "Outline") %>% 
+  addScaleBar(position = "bottomleft",
+              options = scaleBarOptions(maxWidth = 100, metric = TRUE,
+                                        imperial = TRUE, updateWhenIdle = TRUE))%>%
+                        addCircleMarkers(data = semaforos,
+                     lat = ~latitud, lng = ~longitud, 
+                                        group = "Markers",
+                                        radius = 5,
+                                        color = "red", 
+                                        fill = TRUE, 
+                                        opacity = 0.8,
+                                        popup= ~popupInfo1,
+                                        options = popupOptions(closeButton = TRUE),
+                                        clusterOptions = markerClusterOptions() 
+                                        #icon = icon goes here.
+                                        ) %>% addLayersControl(
+                                                baseGroups = c("OpenStreetMap.BlackAndWhite (default)", 
+                                                               "Toner",
+                                                               "WorldStreetMap"
+                                                               ), 
+                                                                              overlayGroups = c("Markers", "Outline"),
+                                                                              position = "topleft"
+                                                               )
+
+
+
+```
+
+
+
+
+La falta de información y actualización del sistema semafórico tradicional de la ciudad de Lima 
+===========================================================================
+
+Column {data-width=600}
+---------------------------------------------------------------------------
+
+### 
+\
+
+<p style = "color:black; font-size:18px; font-weight: 700; text-align:center">INTRODUCCIÓN</p>
+
+\
+Es del día a día notar y vivir la congestión vehicular en nuestra ciudad, cuando nos dirigimos al trabajo, a estudiar, hacer compras, etc. En las principales avenidas de Lima se genera aglomeración de carros por extensos tramos de tiempo, lo cual genera la emisión de contaminantes al medio ambiente, una lenta circulación, y estrés en las personas incluido su costo de oportunidad, ya que el tiempo perdido en estos lapsos podrían emplazarlos en otros ámbitos de su interés. Es, por ende, donde radica la importancia de la semaforización. Los semáforos de Lima suelen ser en su mayoría fijos, es decir, que ya tienen programado un tiempo por cada luz, son estáticos. Es por ello, que nosotros sugerimos la implementación de semáforos inteligentes, ya que daría resultados propicios para las intersecciones de avenidas, en las cuales se genera congestión vehicular, así mismo otras utilidades. De igual forma, el contar con un sistema inclusivo, con mecanismos para personas discapacitadas tales como timbres o losetas especiales, ayudaría al desarrollo de nuestra ciudad y al bienestar de la sociedad.
+\
+\
+\
+<p style = "color:black; font-size:18px; font-weight: 700; text-align:center">DESARROLLO</p>
+\
+Una de las vías más importantes de la ciudad de Lima, es la avenida Abancay, con sus once cuadras de largo, funciona como límite entre el damero de Pizarro y los Barrios Altos. Comienza próxima al río Rímac y termina en la avenida Grau, teniendo como eje al Mercado Central (Marquina, 2017). Hoy, la avenida Abancay se asocia a la congestión del tráfico vehicular, seguida de la contaminación del aire y la ocurrencia de conflictos viales. Algunos de los factores que contribuyen a la congestión vehicular son el incremento indiscriminado de los vehículos, el mal diseño de las vías que en algunos casos se reducen en 2 o 3 carriles, y sumado a los semáforos malogrados que simplemente no cumplen la función de hacer fluido el tránsito. Carrasco (2021), en su tesis demuestra la falta de sincronización generada entre las intersecciones, a este problema se suma la falta de mantenimiento de la infraestructura de tráfico y su grado de obsolescencia por lo que es necesario y urgente el mejoramiento y en términos eficientes el perfeccionamiento del sistema.
+\
+\
+Una de las herramientas para la mejora de este sistema puede ser la implementación de tecnologías como el Survey123, de ArcGIS, que beneficiará a la actualización del inventario de los semáforos para darles mantenimiento o renovarlos por otros modernos. Un claro ejemplo es el inventario de hidrantes (Manizales, Colombia) donde el Survey123 administró la información catastrada en campo y almacenó directamente a una base de datos online, así disminuyó ampliamente los tiempos de respuesta a la atención de fallas detectadas en los hidrantes (Idarraga, 2020).
+\
+\
+De manera similar se realizó el inventario de semáforos por el equipo de GEODATA SCIENCE, la mayoría ubicados en el área de Lima Metropolitana, donde observamos que el 15% de semáforos no presenta una buena sincronización. Un 47% considera que el tiempo entre el cambio de luz del semáforo es muy breve, lo contrario a lo que percibe el porcentaje restante. El motivo de esta diferenciación en las percepciones de la velocidad del cambio de luz en los semáforos, probablemente como menciona Martínez (2014), es debido a que los semáforos tradicionales son sistemas temporizados que pasan de un estado a otro siguiendo un patrón de secuencia fija, carecen de inteligencia para tomar decisiones, lo que representa una gran desventaja durante las horas picos en importantes arterias viales, ya que los cambios se realizan en tiempos no adaptados a las condiciones del tráfico, y mientras una intersección vacía tiene luz verde, la arteria principal se detiene a esperar el cambio, agrupando los vehículos hasta congestionar el canal. Entendemos entonces, que el intervalo programado para el cambio de luz del semáforo puede estar bien para cierto horario, pero no funcionar en horas punta, viceversa, o en ciertos lapsos de tiempo durante el día. Debido a esta limitación o desventaja de los semáforos tradicionales (85.7%) surgen los semáforos inteligentes, que son capaces de tomar una decisión ante una situación de congestión vehicular. 
+\
+\
+Se ha llevado a cabo simulaciones de la implementación de los semáforos inteligentes, comprobando una mejora en el flujo vehicular y reducción de la congestión vehicular, como la realizada en las Av. Javier Prado y Ca. Las Flores, donde Rivera (2020) demuestra que: “La aplicación de un sistema de semaforización inteligente a través de la simulación mejoró el nivel de servicio de las intersecciones de F a E. En la intersección de la Av. Javier Prado y Ca. Las Flores el tiempo de demoras disminuyó en 16%, mientras que en la Av. Javier Prado y Ca. Las Palmeras se redujo en 21%”. Con lo anterior se puede afirmar que los semáforos inteligentes, presentarían un mayor beneficio y eficacia a la hora de controlar el flujo vehicular en comparación con el sistema tradicional de semáforos que muchas veces entorpece la circulación.
+\
+\
+Finalmente, podemos agregar, que no todas las personas están en las mismas capacidades de recibir las indicaciones básicas de las señales de tránsito, por lo que no solo el uso de los semáforos, ya sean tradicionales o inteligentes son suficientes para dar atención igualitaria a la población, sino estos deben estar acompañados por uso de sistemas para personas con discapacidades motoras, visuales o auditivas. Una entrevista del diario El Comercio (2021) al judoka peruano paraolímpico, Fred Villalobos, detalla que la Ley 29973 (marco legal para la protección de derechos de personas con discapacidad), aborda de forma muy general el tema de accesibilidad. “Dicha norma no precisa sanción alguna para las autoridades por no hacer valer el derecho al libre tránsito de las personas discapacitadas en sus jurisdicciones”. Según nuestro Survey solo el 8% de los semáforos mapeados cuentan con algún sistema para personas con discapacidad, por lo que es importante corregir la falta de implementación de tecnologías para personas con capacidades diferentes como pasos peatonales con superficies podotáctiles y sistemas de pitidos de orientación.
+\
+\
+\
+<p style = "color:black; font-size:18px; font-weight: 700; text-align:center">CONCLUSIÓN</p>
+\
+Dada la gran necesidad de convertir a la ciudad de Lima o tan sólo al damero de esta, en un territorio inteligente enfocado en el transporte, nos vemos en la necesidad de proponer la implementación de semáforos inteligentes en los cruces semafóricos, donde se integre toda la información y haya intercambio de datos que se recaben en un software de centralización de semáforos, y todo esto se vaya directo a una plataforma digital para la toma de decisiones del municipio, implementado además sensores medidores de la calidad del aire, el ruido y la seguridad ciudadana. Dicho esto, el Survey123 es una herramienta importante para recaudar datos de la percepción de la ciudadana, y más aún para las personas con dicacidad, en cuanto a la situación del sistema vehicular, así como enterarse de los aspectos a mejorar o cambiar del sistema.
+\
+
+Column
+---------------------------------------------------------------------------
+
+### 
+```{r map}
+pp_leaflet_spatial_1
+```
+###  
+```{r }
+densidad
+```
+
+
+
+Quienes somos {data-orientation=rows data-icon="fa-info-circle"}
+===================================== 
+
+###  
+
+<p style = "color:black; font-size:18px; font-weight: 700; text-align:center">EXPERIENCIAS</p>
+
+<br/>
+
+<img src = "./recursos/alexandra.png">
+<p class = "comentarios"> Para recopilar información sobre los semáforos(la que usamos para algunas estadísticas en este ensayo) nos dirigimos a las avenidas más cercanas a nuestros domicilios, con ayuda de nuestro móvil, tomamos la coordenada de cada uno de los semáforos (peatonales y vehiculares) a la vez que respondímos el survey sobre las características del mismo y lo fotografiamos en el lugar para mostrar su estado. Previamente, realizamos una investigación por nuestra cuenta acerca de los diferentes tipos de semáforos, su funcionamiento, el cruce peatonal, los sistemas que se pueden incorporar para personas con discapacidad, entre otros datos relevantes para dar respuesta al cuestionario del survey de manera correcta. </p>
+
+<p style = "color:black; font-weight: 700; text-align:right">Alexandra</p>
+
+\
+\
+<img src = "./recursos/milagritos.png">
+<p class = "comentarios"> Para llevar a cabo la recolección de data de  los semáforos, tuve que dirigirme a la avenida principal y  más concurridas de mi distrito, cabe recalcar que en la zona que habito, hay abundancia de motos pero a su vez hay falta de semáforos, por ello en ocasiones hay accidentes. De la misma forma tomar datos en este lugar, ya que es céntrico y comercial, conlleva a que haya inseguridad ciudadana, habiendo así muchos robos al paso. Tuve que tomar muchas precauciones al respecto, las tomas fueron lo más precisas posibles. Lo que pude apreciar adicional a ello, es que faltan policías a los alrededores y una mejor infraestructura en las pistas.</p>
+\
+<p style = "color:black; font-weight: 700; text-align:right">Milagritos</p>
+
+\
+\
+<img src = "./recursos/katherine.png">
+<p class = "comentarios">Para la recopilación de los datos en campo, se tuvo que caracterizar cada semáforo para poder responder las preguntas del Survey. Generalmente los semáforos se ubican en las vías principales de los distritos por lo que uno de los inconvenientes en la toma de datos, fue la exposición del dispositivo móvil (celular) en cada esquina donde se encontraban semáforos, ya que este acto llama la atención de ladrones.</p>
+\
+<p style = "color:black; font-weight: 700; text-align:right">Katherine</p>
+\
+\
+<img src = "./recursos/joselyn.png">
+<p class = "comentarios">Yo me dirigí a la avenida más cercana de mi hogar ya que mi distrito no es de los más seguros, es así que caminé por todo el perímetro de la avenida Próceres de la Independencia, recordando los lugares que frecuentaba cuando era adolescente; al momento de tomar las fotos y quedarme por un buen rato rellenando la encuesta, las personas por lo general me miraban con extrañeza, pero pude completarlas</p>
+\
+<p style = "color:black; font-weight: 700; text-align:right">Joselyn</p>
+\
+\
+<img src = "./recursos/julio.png">
+<p class = "comentarios">Participar de este proyecto me dio nuevas perspectivas sobre la gestión vehicular en Lima, y también en mi distrito. Entendí que para tener un buen control del tránsito vehicular se necesita monitorear los medios de transporte, ver por donde circulan estos vehículos (vías) y sobre todo ver los controladores de velocidad como los semáforos. Levantar la información de los semáforos nos ayudó a generar este ensayo.</p>
+\
+<p style = "color:black; font-weight: 700; text-align:right">Julio</p>
+\
+\
+
+**GRUPO DE TRABAJO**
+
+Nuestro grupo de trabajo se conforma por 5 estudiantes de ingenería geográfica.
+
+* Inga Peve Joselyn Andrea
+* Rojas Cárdenas Alexandra
+* Contreras Huerta Julio Cesar
+* Paquiyauri Ylla Milagritos Caroline 
+* Astete López Katherine
+
+
+
+
+### 
+
+<p style = "color:black; font-size:18px; font-weight: 700; text-align:center">REFERENCIAS</p>
+
+* Carrasco Lonkina, L. L. (2021). Propuesta de aplicación de un crucero peatonal diagonal con fase exclusiva para la reducción de conflictos peatón-vehículo considerando la respuesta conductual de los usuarios viales en la intersección Av. Abancay y Av. Nicolás de Piérola, Lima. Universidad Peruana de Ciencias Aplicadas (UPC). https://repositorioacademico.upc.edu.pe/handle/10757/657518
+\
+\
+* Cordero Rodríguez, N. K. (2021). La informalidad comercial y la cultura tributaria de los comerciantes ambulantes del mercado La Paradita del distrito de Chorrillos. http://repositorio.upla.edu.pe/handle/20.500.12848/2285 
+\
+\
+* Del Aguila Panduro, R. M. (2017). Propuesta de implementación de un sistema inteligente de transporte para la mejora de las condiciones viales en el tramo de la Panamericana Norte entre av. Los Alisos y Av. Abancay. Universidad Peruana de Ciencias Aplicadas (UPC). https://repositorioacademico.upc.edu.pe/handle/10757/622505
+\
+\
+* El Comercio (2021). Personas con discapacidad: el desafío de ganarle a la mala accesibilidad en las calles de Lima. Recuperado de        https://elcomercio.pe/lima/sucesos/personas-con-discapacidad-el-desafio-de-ganarle-a-la-mala-accesibilidad-en-las-calles-de-lima-noticia/?ref=ecr 
+\
+\
+* García Canclini, N. et ál. (1996). La ciudad de los viajeros, travesías e imaginarios urbanos: México, 1940-2000. México: Ed. Grijalbo.
+\
+* Idarraga Ramirez, J. H., & Salazar Casas, S. A. (2020). Análisis espacial de cobertura de hidrantes de la Ciudadela del Norte, mediante uso de SIG. 
+\
+\
+* Lachira Valvas, Y. A. (2018). Contaminación por ruido vehicular y calidad de vida social en la Av. Abancay con Jr. Montevideo - 2017. Universidad César Vallejo. https://renati.sunedu.gob.pe/handle/sunedu/2952982
+\
+\
+* Ludeña, W. (2002). Lima: poder, centro y centralidad: Del centro nativo al centro neoliberal. EURE (Santiago), mayo 2002, vol.28, N° 83, p.45-65. En Scielo. Recuperado de http://www.scielo.cl/scielo.php?script=sci_arttext&pid=S0250-71612002008300004&lng=pt&nrm=iso/
+\
+\
+* Marquina, O. (2017). Explorando la comunicación en la avenida Abancay: un ejercicio de observación etnográfica. Conexión, 8, 23–36. https://revistas.pucp.edu.pe/index.php/conexion/article/view/19726
+\
+\
+* Martínez, M. (2014). Semáforos Inteligentes. Universidad Católica Nuestra Señora de la Asunción. Paraguay. Recuperado de:  http://jeuazarru.com/wp-content/uploads/2014/10/semaforos_inteligentes.pdf
+\
+\
+* Méndez Montoya, J. J. (2017). Parque automotor y contaminación ambiental en el Centro Histórico de Lima.
+Repositorio de Tesis - UNMSM. https://cybertesis.unmsm.edu.pe/handle/20.500.12672/6200 
+\
+\
+* Ochoa de la Cruz, F. D., & Pariona Lozano, E. J. (2019). Diseño de un sistema electrónico basado en FPGA y visión artificial para el control de tráfico vehicular en la avenida Abancay. Universidad Tecnológica Del Perú. http://repositorio.utp.edu.pe/handle/20.500.12867/2343
+\
+\
+* Rivera, G. & Velásquez, L. (2020). Propuesta de implementación de un sistema de semaforización inteligente para mejorar los niveles de servicio de la av. Javier Prado oeste, tramo ca. Las palmeras y ca. Las flores en el distrito de San Isidro. Universidad Peruana de Ciencias Aplicadas. Perú. Recuperado de: https://repositorioacademico.upc.edu.pe/bitstream/handle/10757/651707/Rivera_SG.pdf?sequence=3&isAllowed=y
+\
+\
+* Santamaría, M. V. B., & Moscol, M. F. R. (2014). Semáforos inteligentes para la regulación del tráfico vehicular. Ingeniería: Ciencia, Tecnología e Innovación, 1(1), 37-37.
+
+
